@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DancingLinksArrayStacklessTest {
     @Test
@@ -142,6 +143,12 @@ class DancingLinksArrayStacklessTest {
     }
 
     @Test
+    public void whenBuildingInvalidLangfordPair_throwWithMessage() {
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> LangfordPairBuilder.build(0));
+        assertEquals("Langford pair problem size must be greater than 0: 0", thrown.getMessage());
+    }
+
+    @Test
     public void shouldSolveLangfordPairN7() {
         DancingArray array = DancingArrays.create(LangfordPairBuilder.build(7));//DancingarrayBuilder.buildLangfordPairN3();
         SolutionTree solution = DancingLinks.create(OfIntSolutionTree.createStoring(array, 1000), array).solve();
@@ -199,6 +206,12 @@ class DancingLinksArrayStacklessTest {
         List<String> solutions = solution.printCurrentSolutions(array).collect(Collectors.toList());
         assertEquals("8:r3->c1->t4->u2,1:r1->c2->t3->u-1,14:r4->c3->t7->u1,7:r2->c4->t6->u-2", solutions.get(0));
         assertEquals("11:r3->c4->t7->u-1,2:r1->c3->t4->u-2,4:r2->c1->t3->u1,13:r4->c2->t6->u2", solutions.get(1));
+    }
+
+    @Test
+    public void whenBuildingInvalidNQueen_throwWithMessage() {
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> NQueenProblem.build(0));
+        assertEquals("NQueen problem size must be greater than 0: 0", thrown.getMessage());
     }
 
 }

@@ -9,6 +9,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -45,22 +46,20 @@ import java.util.stream.Stream;
  * Parallelization idea:
  * store the memory state of best branching point and send these points along with the branch id to a thread
  */
-public class MemoryMappedFileIntStorer implements SolutionStorer {
+public class MemoryMappedFileIntStorer implements SolutionStorer, AutoCloseable {
     private static final int PAGE_SIZE = 1_000_000;//1MB page as minimum map size
-
-    private static final int ENTRY_LEN = 32;
-    private static final int SEP_LEN = 1;
     private final RandomAccessFile solutionFile;
     private final List<Integer> solutionReadPos = new ArrayList<>();
-    private final int size;
     private final RandomAccessFile indexFile;
     private final FileChannel solutionChannel;
     private final FileChannel indexChannel;
-    private final MappedByteBuffer solutionBuff;
-    private final MappedByteBuffer indexBuff;
+    private MappedByteBuffer solutionBuff;
+    private MappedByteBuffer indexBuff;
     private int solutionPosition;
-    private int listIndexPosition;
+    private int solutionBuffStart;
+    private int indexBuffStart;
     private final int listCountPosition = 0;
+    private int solutionCount;
 
     public MemoryMappedFileIntStorer(SolutionStorer storer) throws IOException {
         solutionFile = new RandomAccessFile("calc.out", "rwd");
@@ -71,68 +70,130 @@ public class MemoryMappedFileIntStorer implements SolutionStorer {
 
         indexFile = new RandomAccessFile("calc.idx", "rwd");
         indexFile.setLength(0L);//we reset the file
-        indexChannel = solutionFile.getChannel();
+        indexChannel = indexFile.getChannel();
         indexChannel.position(0);
         indexBuff = indexChannel.map(FileChannel.MapMode.READ_WRITE, 0, PAGE_SIZE);
 
-        size = storer.getSolutionCount();
-
         solutionPosition = 0;
-    }
+        solutionBuffStart = 0;
+        indexBuffStart = 0;
+        solutionCount = 0;
+        updateIndexHeader();
 
-    private static class Block {
-        int position;
-    }
-
-    private static class Index extends Block {
-        int count;
-        List<Integer> lists;
-    }
-
-    private static class Solution extends Block {
-        int size;
-        int[] list;
-
-        public Solution(int[] solution, int position) {
-            list = solution;
-            size = list.length;
-            this.position = position;
-        }
-    }
-
-    private int updateIndex() {
-        return 0;
+        storer.getSolutions().forEach(this::storeSolution);
     }
 
     private void updateIndexHeader() {
-
+        putIndexInt(listCountPosition, solutionCount);
     }
 
-    private Solution addSolution(SolutionTree solution, int position) {
-        return new Solution(solution.getActiveBranch(), position);
+    private void updateIndex(int solutionIndex, int solutionOffset) {
+        putIndexInt(indexPosition(solutionIndex), solutionOffset);
+    }
+
+    private int indexPosition(int solutionIndex) {
+        return Integer.BYTES + solutionIndex * Integer.BYTES;
+    }
+
+    private void storeSolution(int[] solution) {
+        int offset = solutionPosition;
+        solutionReadPos.add(offset);
+        updateIndex(solutionCount, offset);
+
+        putSolutionInt(solutionPosition, solution.length);
+        solutionPosition += Integer.BYTES;
+        for (int val : solution) {
+            putSolutionInt(solutionPosition, val);
+            solutionPosition += Integer.BYTES;
+        }
+
+        solutionCount++;
+        updateIndexHeader();
+    }
+
+    private void putSolutionInt(int position, int value) {
+        solutionBuff = ensureMapped(solutionChannel, solutionBuff, position, true);
+        solutionBuff.putInt(position - solutionBuffStart, value);
+    }
+
+    private void putIndexInt(int position, int value) {
+        indexBuff = ensureMapped(indexChannel, indexBuff, position, false);
+        indexBuff.putInt(position - indexBuffStart, value);
+    }
+
+    private int readSolutionInt(int position) {
+        solutionBuff = ensureMapped(solutionChannel, solutionBuff, position, true);
+        return solutionBuff.getInt(position - solutionBuffStart);
+    }
+
+    private int readIndexInt(int position) {
+        indexBuff = ensureMapped(indexChannel, indexBuff, position, false);
+        return indexBuff.getInt(position - indexBuffStart);
+    }
+
+    private MappedByteBuffer ensureMapped(FileChannel channel, MappedByteBuffer buffer, int position, boolean solution) {
+        int start = solution ? solutionBuffStart : indexBuffStart;
+        if (position >= start && position + Integer.BYTES <= start + PAGE_SIZE) {
+            return buffer;
+        }
+        int newStart = position - position % PAGE_SIZE;
+        try {
+            MappedByteBuffer mapped = channel.map(FileChannel.MapMode.READ_WRITE, newStart, PAGE_SIZE);
+            if (solution) {
+                solutionBuffStart = newStart;
+            } else {
+                indexBuffStart = newStart;
+            }
+            return mapped;
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot map solution storage file", e);
+        }
+    }
+
+    private int[] readSolution(int solutionIndex) {
+        int position = solutionReadPos.size() > solutionIndex
+                ? solutionReadPos.get(solutionIndex)
+                : readIndexInt(indexPosition(solutionIndex));
+        int len = readSolutionInt(position);
+        int[] solution = new int[len];
+        int current = position + Integer.BYTES;
+        for (int i = 0; i < len; i++) {
+            solution[i] = readSolutionInt(current);
+            current += Integer.BYTES;
+        }
+        return solution;
     }
 
     @Override
     public void store(SolutionTree tree) {
-        updateIndexHeader();
-        listIndexPosition = listIndexPosition + 1;
-        listIndexPosition = updateIndex();
-        Solution solutionBlock = addSolution(tree, solutionPosition);
-        solutionPosition += solutionBlock.size;//new position for new write
+        storeSolution(tree.getActiveBranch());
     }
 
     @Override
     public Stream<int[]> getSolutions() {
-        return null;
+        return IntStream.range(0, solutionCount).mapToObj(this::readSolution);
     }
 
     @Override
     public int[] getFirstSolution() {
-        return null;
+        if (solutionCount == 0) {
+            return new int[]{};
+        }
+        return readSolution(0);
     }
 
     @Override
     public int getSolutionCount() {
-        return 0;
+        return solutionCount;
+    }
+
+    @Override
+    public void close() throws IOException {
+        solutionBuff.force();
+        indexBuff.force();
+        solutionChannel.close();
+        indexChannel.close();
+        solutionFile.close();
+        indexFile.close();
     }
 }

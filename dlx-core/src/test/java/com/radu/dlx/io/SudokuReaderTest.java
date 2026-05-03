@@ -1,6 +1,7 @@
 package com.radu.dlx.io;
 
 import com.radu.dlx.problem.ExactCoveringProblem;
+import com.radu.dlx.problem.sudoku.SudokuBoardBuilder;
 import com.radu.dlx.problem.sudoku.SudokuBoardReader;
 import com.radu.dlx.problem.sudoku.SudokuBoardWriter;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,13 @@ public class SudokuReaderTest {
     public void whenReadingNonCellCharacters_boardIsEmpty() {
         final ByteArrayInputStream in = new ByteArrayInputStream("".getBytes());
         IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> SudokuBoardReader.create().read(in));
-        assertEquals("Board was not filled! Only 0 elements were ", thrown.getMessage());
+        assertEquals("Board was not filled! Only 0 elements were parsed, expected 81", thrown.getMessage());
+    }
+
+    @Test
+    public void whenAddingOutOfRangeCellValue_throw() {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () -> SudokuBoardBuilder.builder().addUntilValid(10));
+        assertEquals("Sudoku cell value must be between 0 and 9: 10", thrown.getMessage());
     }
 
     @Test

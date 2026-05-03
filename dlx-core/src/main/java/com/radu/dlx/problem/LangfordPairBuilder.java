@@ -41,7 +41,7 @@ public final class LangfordPairBuilder extends ExactCoverProblemBuilder {
 
     @Override
     protected String invalidMessage() {
-        throw new UnsupportedOperationException();
+        return "Langford pair problem size must be greater than 0: " + n;
     }
 
     @Override

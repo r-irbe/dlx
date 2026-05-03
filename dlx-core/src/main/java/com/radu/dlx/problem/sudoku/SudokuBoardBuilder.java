@@ -89,6 +89,9 @@ public final class SudokuBoardBuilder extends ExactCoverProblemBuilder {
      * @return true if board is valid
      */
     public boolean addUntilValid(int val) {
+        if (val < 0 || val > BOARD_SIDE) {
+            throw new IllegalArgumentException("Sudoku cell value must be between 0 and 9: " + val);
+        }
         loc++;
 
         int row = calcRow(loc);
@@ -137,7 +140,7 @@ public final class SudokuBoardBuilder extends ExactCoverProblemBuilder {
 
     @Override
     protected String invalidMessage() {
-        return "Board was not filled! Only " + (loc + 1) + " elements were ";
+        return "Board was not filled! Only " + (loc + 1) + " elements were parsed, expected " + BOARD_SIZE;
     }
 
     @Override
