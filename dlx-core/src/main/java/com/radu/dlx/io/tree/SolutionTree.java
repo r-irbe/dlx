@@ -22,7 +22,8 @@ public interface SolutionTree {
     int maxSolutionNum();//TODO: do we need this? We can keep this in SolverConfig
 
     /**
-     * @return is empty?
+     * @return true when the solution tree has never advanced from the root.
+     * This does not necessarily mean that the current active branch is empty after backtracking.
      */
     boolean isEmpty();
 

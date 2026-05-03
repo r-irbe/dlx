@@ -2,9 +2,9 @@ package com.radu.dlx.problem.sudoku;
 
 import com.radu.dlx.problem.ExactCoveringProblem;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.PrimitiveIterator;
-import java.util.Scanner;
 
 /**
  * Class for reading the sudoku specification from an input stream
@@ -61,7 +61,10 @@ public final class SudokuBoardReader {
      * In case of Standard input stream, JVM and OS has to handle its closing
      */
     private String streamToString(InputStream in) {
-        Scanner scanner = new Scanner(in).useDelimiter(CONTROL_CHAR);
-        return scanner.hasNext() ? scanner.next() : "";
+        try {
+            return new String(in.readAllBytes());
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read sudoku input", e);
+        }
     }
 }

@@ -39,7 +39,7 @@ public final class NQueenProblem extends ExactCoverProblemBuilder {
 
     @Override
     protected String invalidMessage() {
-        throw new UnsupportedOperationException();
+        return "NQueen problem size must be greater than 0: " + n;
     }
 
     @Override
